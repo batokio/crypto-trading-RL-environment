@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -79,8 +85,3 @@ class TradingGraph:
     def close(self):
         plt.close()
 
-    
-    
-    
-    
-    

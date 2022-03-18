@@ -36,8 +36,10 @@ class CryptoTradingEnv(py_environment.PyEnvironment):
         
         self.moves = [] #stores the trades made by our agent
         
-        ef = pd.ExcelFile("data/priceData.xls") #used to get the sheets in our excel file
+        ef = pd.ExcelFile("/Users/Bryan/Google Drive/Cours/DSBA/T2/1. Reinforcement Learning/4. Group_Project/work_git/data/priceData.xls") #used to get the sheets in our excel file
         self.dfs = []
+        self.average_values = []
+        self.current_numbers = []
         
         '''
         Iterate over the sheets (pairs/markets) and:
@@ -46,11 +48,15 @@ class CryptoTradingEnv(py_environment.PyEnvironment):
             - load each sheet as a dataframe and store each df in the list self.dfs
         '''
         for sn in ef.sheet_names:
-            print("loading sheet: "+sn)
-            self.dfs.append(pd.read_excel('data/priceData.xls', sheet_name = sn))
+            print("loading sheet: "+sn) 
+            self.dfs.append(pd.read_excel('/Users/Bryan/Google Drive/Cours/DSBA/T2/1. Reinforcement Learning/4. Group_Project/work_git/data/priceData.xls', sheet_name = sn))
             print("loaded: "+sn)
             self.moves.append([])
             self.wallet.append(0.0)
+            self.average_values.append(0)
+            self.current_numbers.append(0)
+
+
             
             
     def reset(self):
@@ -58,7 +64,7 @@ class CryptoTradingEnv(py_environment.PyEnvironment):
         self.initial_time_step = ts.restart(self._state)
         self.wallet = [self.initial_balance]
         
-        ef = pd.ExcelFile("priceData.xls")
+        ef = pd.ExcelFile("/Users/Bryan/Google Drive/Cours/DSBA/T2/1. Reinforcement Learning/4. Group_Project/work_git/data/priceData.xls")
         for sn in ef.sheet_names:
             self.wallet.append(0.0)
         self.current_step = self.look_back_window
@@ -80,11 +86,11 @@ class CryptoTradingEnv(py_environment.PyEnvironment):
         #seperate our action list to different variables
         coin = action[0]
         action_type = action[1]
-        amount = action[2]/10.0
+        amount = action[2]
             
         #initiliaze the reward to 0 for each timestep
         reward = 0
-        
+
         if self.wallet[0]<0.01*self.initial_balance:
             self._episode_ended = True
             return ts.termination(self._state, reward)
@@ -92,19 +98,33 @@ class CryptoTradingEnv(py_environment.PyEnvironment):
         if action_type==0:
             #Buy coin
             current_price = data[coin][1, self.look_back_window-1]
-            usd_val = amount*self.wallet[0]
-            self.wallet[0] -= usd_val
-            self.wallet[coin+1] += usd_val/current_price
-            self.moves[coin].append(['buy', self.current_step, current_price])
+            usd_val = amount*current_price
+            if(self.wallet[0] > usd_val) : 
+                self.wallet[0] -= usd_val
+                print("Buy Action\nLast Average ",self.average_values[coin],"\nBuying price ",current_price,"\nAmt ",amount)
+                self.average_values[coin] = (self.wallet[coin+1] * self.average_values[coin] + usd_val)/(self.wallet[coin+1] + amount)
+                print("New Average ",self.average_values[coin])
+                self.wallet[coin+1] += amount
+                self.moves[coin].append(['buy', self.current_step, current_price])
+
+            
             
         
         if action_type==1:
             #Sell coin
             current_price = data[coin][1, self.look_back_window-1]
-            coin_val = amount*self.wallet[coin+1]
-            self.wallet[coin+1] -= coin_val
-            self.wallet[0] += coin_val*current_price
-            self.moves[coin].append(['sell', self.current_step, current_price])
+            coin_val = amount*self.average_values[coin]
+            if(self.wallet[coin+1] > amount) :
+                self.wallet[coin+1] -= amount
+                self.wallet[0] += amount*current_price
+                self.moves[coin].append(['sell', self.current_step, current_price])
+                profit = amount * (current_price - self.average_values[coin])
+                profit_sign = np.sign(profit)
+                reward = profit_sign * (1 + (5 ** np.log10(abs(profit))))
+                print("Current Average ",self.average_values[coin],"\nCurrent Price ",current_price,"\nProfit ",profit, "\nReward ", reward)
+
+
+
         
         #increment the step in our environment
         self.current_step+=1
